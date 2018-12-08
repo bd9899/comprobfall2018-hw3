@@ -25,6 +25,47 @@ worldBounds = [[-5,1],[-3,-2]]    #bounds of the world/room
 Pi = math.pi
 obstacles = []
 
+class Node():
+    pos = [0,0,0]
+    x = 0
+    y = 0
+    r = 0
+    connected = []
+    parent = None
+    g = 0
+    
+    def __str__(self):
+        temp = 'Position: ' + '('+ str(self.x)
+        temp += ', ' + str(self.y) + ')'
+        return temp
+    def setPos(self,x,y): #set position of Node at x,y,z
+        self.x = x
+        self.y = y
+        self.pos[0] = x
+        self.pos[1] = y
+        return self.pos
+    
+    def setRot(self, angle):
+        self.r = angle
+        self.pos[2] = angle
+        return self.pos
+
+def makeNode(): #generates a random node with random Quaternion/position
+    node = Node()
+    global worldBounds
+    bounds = worldBounds
+    posX = rnd.random()*(bounds[0][1]-bounds[0][0]) + bounds[0][0] 
+    posY = rnd.random()*(bounds[1][1]-bounds[1][0]) + bounds[1][0] 
+    rotation = rnd.random()*(2*Pi)-Pi
+    node.pos = [posX,posY, rotation]
+    node.x = posX
+    node.y = posY
+    node.r = rotation
+    
+    return node
+
+
+
 def func():
     N = 20000  # number of points
     radius = 1.
