@@ -280,10 +280,10 @@ def systematic_resample(weights):
     positions = (np.arange(N) + randNum) / N
 
     indexes = np.zeros(N, 'i')
-    cumulative_sum = np.cumsum(weights)
+    weightSum = np.cumsum(weights)
     i, j = 0, 0
     while i < N:
-        if positions[i] < cumulative_sum[j]:
+        if positions[i] < weightSum[j]:
             indexes[i] = j
             i += 1
         else:
@@ -298,16 +298,21 @@ def resample():
     if neff < NTh:
         indexes = systematic_resample(weights)
         resample_from_index(particles, weights, indexes)
+        assert np.allclose(weights, 1/N)
 
-    
-        
-        
 
     return particles
 
 
-def propagate():
-    a = 1
+def particleFilter(iterations):
+    global particles, weights
+    createUniform(worldBounds[0], worldBounds[1], [-Pi, Pi], N)
+    for i in range(iterations):
+        predict()
+        updateWeights(particles, measuredLengths)
+        resample()
+        
+    return particles, weights        
     
 
 def compute_x_y(pose):
