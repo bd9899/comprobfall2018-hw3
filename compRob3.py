@@ -22,6 +22,7 @@ from shapely.geometry import LineString
 import matplotlib.patches as ptc
 import pandas as pd 
 import random as rnd
+import read_file as rd
 
 
 worldBounds = [[-5,1],[-3,-2]]    #bounds of the world/room
@@ -194,40 +195,21 @@ def init_particles():
         particle = 1.0/N
         
     return 
-    
-"""
-def resample(particles, weights):
-    
-    N = len(weights)
-    positions = (np.arange(N) + random()) / N
-    indexes = np.zeros(N, 'i')
-    cumulative_sum = np.cumsum(weights)
-    i, j = 0, 0
-    while i < N:
-        if positions[i] < cumulative_sum[j]:
-            indexes[i] = j
-            i += 1
-        else:
-            j += 1
-    particles[:] = particles[indexes]
-    weights[:] = weights[indexes]
-    weights.fill(1.0 / len(weights))
-"""
 
 
-def predict(particles, u, std, dt=1.):
+def predict(u, std):
     """ move according to control input u (heading change, velocity)
     with noise Q (std heading change, std velocity)`"""
     global particles
     
     N = len(particles)
     # update heading
-    particles[:, 2] += u[0] + (randn(N) * std[0])
+    particles[:, 2] += np.random.normal(u[1],std[1])
     particles[:, 2] %= 2 * Pi
     particles[:, 2] -= Pi
 
     # move in the (noisy) commanded direction
-    dist = (u[1] * dt) + (randn(N) * std[1])
+    dist = np.random.normal(u[0],std[0])
     particles[:, 0] += np.cos(particles[:, 2]) * dist
     particles[:, 1] += np.sin(particles[:, 2]) * dist
 
@@ -242,7 +224,7 @@ def likelihood(distance, measured, noise = 1): #measured distance
     return prob
     
 
-def updateWeights(particles, measuredLengths):
+def updateWeights(measuredLengths):
     global weights, particles
     
     for i in range(len(weights)):
@@ -307,9 +289,25 @@ def resample():
 def particleFilter(iterations):
     global particles, weights
     createUniform(worldBounds[0], worldBounds[1], [-Pi, Pi], N)
+    prevHeading = 0.0
     for i in range(iterations):
-        predict()
-        updateWeights(particles, measuredLengths)
+#        print 'heading'
+#        print rd.noisy_heading[i]
+#        print 'distance'
+#        print rd.noisy_distance[i]
+#        print
+#        print rd.scan_data[i]
+#        print 'done'
+        
+        ##counter clockwise spin is positive
+        
+        angleChange = rd.noisy_heading[i] - prevHeading
+        prevHeading = rd.noisy_heading[i]
+        distanceChange = rd.noisy_distance[i]
+        noise = 0
+        
+        predict([distanceChange, angleChange], noise)
+        updateWeights(rd.scan_data[i])
         resample()
         
     return particles, weights        
@@ -335,7 +333,7 @@ def generate_scans_for_particles(pose):
         STEP_SIZE = 0.019652407
         
         steps = np.arange(theta_start, theta_stop, STEP_SIZE)
-        print(len(steps))
+#        print(len(steps))
         scan = []
         
         for i in range(54):
@@ -382,9 +380,13 @@ def compute_length(pose, possible_scans):
 def main():
     
     pose = Pose(-7,-1.5,0)
-   
+    rd.readFile('trajectories_1.txt')
     makeWorld('grid1.txt',3)
-    a = createGaussian([0,0,0], [2,2,2] ,5)
+    
+    particleFilter(len(rd.position))
+    
+    
+    
     plt.gcf().clear()
     
     graph = True
