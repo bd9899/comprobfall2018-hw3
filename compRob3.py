@@ -28,6 +28,7 @@ Pi = math.pi
 obstacles = []
 particles = []
 nodes = [] #tuple of (node, weight)
+distribution = None
 
 
 class Node():
@@ -178,9 +179,28 @@ def predict(particles, u, std, dt=1.):
 
     return particles
 
-def update():
-    a = 1
+  
+#def update(particles, weights, z, R):
+#    for i, landmark in enumerate(landmarks):
+#        distance = np.linalg.norm(particles[:, 0:2] - landmark, axis=1)
+#        weights *= scipy.stats.norm(distance, R).pdf(z[i])
+#
+#    weights += 1.e-300      # avoid round-off to zero
+#    weights /= sum(weights) # normalize    
     
+
+def resample():
+    N = len(particles)
+    cumulative_sum = np.cumsum(weights)
+    cumulative_sum[-1] = 1. # avoid round-off error
+    indexes = np.searchsorted(cumulative_sum, random(N))
+
+    # resample according to indexes
+    particles[:] = particles[indexes]
+    weights.fill(1.0 / N)
+
+
+
 def propagate():
     a = 1
     
