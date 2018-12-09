@@ -236,7 +236,15 @@ def compute_x_y(pose):
     new_x = math.tan(theta)*new_y
     
     return Pose(new_x, new_y, theta)
-    
+
+def likliehood(observation, raw):
+
+    # sigma = std.dev scan noise
+    difference = []
+    for i in range(observation):
+        difference[i] = math.abs(observation[i]+raw[i])
+        
+        
     
 def generate_scans_for_particles(pose):
         
