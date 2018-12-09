@@ -186,22 +186,6 @@ def init_particles():
         
     return 
     
-def resample(particles, weights):
-    
-    N = len(weights)
-    positions = (np.arange(N) + random()) / N
-    indexes = np.zeros(N, 'i')
-    cumulative_sum = np.cumsum(weights)
-    i, j = 0, 0
-    while i < N:
-        if positions[i] < cumulative_sum[j]:
-            indexes[i] = j
-            i += 1
-        else:
-            j += 1
-    particles[:] = particles[indexes]
-    weights[:] = weights[indexes]
-    weights.fill(1.0 / len(weights))
 
 def predict(particles, u, std, dt=1.):
     """ move according to control input u (heading change, velocity)
@@ -298,8 +282,22 @@ def compute_length(pose, possible_scans):
             min_index = x,y
     return min_index
 
+def resample(real, std_dev):
+    guassian_dist = []    
+    for i in range(len(real)):
+        guassian_dist.append(np.random.normal(real[i], std_dev))
+        count, bins, ignored = plt.hist(real[i], 30, normed=True)
+        plt.plot(bins, 1/std_dev * np.sqrt(2 * np.pi)) * np.exp( - (bins - real[i])**2 / (2 * std_dev**2),linewidth=2, color='r')
+        plt.show()
 
+        
+def gaussian(x, mu, sig):
+    return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
+    
 def main():
+    
+    real = [5,4,3,2,3,4,2,3,4]
+    resample(real, 0.1)
     
     pose = Pose(-7,-1.5,0)
    
