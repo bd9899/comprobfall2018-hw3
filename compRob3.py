@@ -16,6 +16,7 @@ from shapely import geometry
 from descartes.patch import PolygonPatch
 import shapely.geometry.polygon as pg
 import time
+from shapely.geometry.polygon import LinearRing
 from shapely.geometry.point import Point
 from shapely.geometry import LineString
 import matplotlib.patches as ptc
@@ -29,6 +30,12 @@ obstacles = []
 particles = []
 nodes = [] #tuple of (node, weight)
 
+class Pose():
+    def __init__(self, x, y, theta):
+        self.x = x
+        self.y = y
+        self.z = theta
+        
 
 class Node():
     pos = [0,0,0]
@@ -138,8 +145,18 @@ def makeWorld(fileName,k):
         obs = ptc.Polygon(vertices)
         poly = geometry.Polygon(obs.get_xy())
         obstacles.append(poly)
-        lines = lines[1::] 
+        lines = lines[1::]
+    return poly
 
+def reweight(weights, particles):
+    probability = []    
+    for particle in particles:
+        x_est = particle.x
+        y_est = particle.y
+        theta_est = particle.theta
+        
+        
+        
 
 def createUniform(xRange, yRange, rRange, N):
     particles = np.empty((N, 3))
@@ -160,6 +177,31 @@ def createGaussian(meanVec, stdVec, N):
     particles[:, 2] -= Pi
     
     return particles
+    
+def init_particles():
+    global particles
+    N = len(particles)
+    for particle in particles:
+        particle = 1.0/N
+        
+    return 
+    
+def resample(particles, weights):
+    
+    N = len(weights)
+    positions = (np.arange(N) + random()) / N
+    indexes = np.zeros(N, 'i')
+    cumulative_sum = np.cumsum(weights)
+    i, j = 0, 0
+    while i < N:
+        if positions[i] < cumulative_sum[j]:
+            indexes[i] = j
+            i += 1
+        else:
+            j += 1
+    particles[:] = particles[indexes]
+    weights[:] = weights[indexes]
+    weights.fill(1.0 / len(weights))
 
 def predict(particles, u, std, dt=1.):
     """ move according to control input u (heading change, velocity)
@@ -185,41 +227,93 @@ def propagate():
     a = 1
     
 
+def compute_x_y(pose):
+    x = pose.x
+    y = pose.y
+    theta = pose.z
+    
+    new_y = 10
+    new_x = math.tan(theta)*new_y
+    
+    return Pose(new_x, new_y, theta)
+    
+    
+def generate_scans_for_particles(pose):
+        
+        global obstacles
+        
+        theta_start = pose.z- 0.523599
+        theta_stop = pose.z + 0.523599
+        STEP_SIZE = 0.019652407
+        
+        steps = np.arange(theta_start, theta_stop, STEP_SIZE)
+        print(len(steps))
+        scan = []
+        
+        for i in range(54):
+            x = pose.x
+            y = pose.y
+            theta = steps[i]
+            pose_temp = Pose(x,y,theta)
+            pose_temp = compute_x_y(pose_temp)
+            laser = (pose_temp.x+x, pose_temp.y+y)
+            robot_pose = (pose.x, pose.y)
+            possible_scans = []
+
+            line = LineString([robot_pose, laser])
+            for obstacle in obstacles:            
+                polygons = LinearRing(list(obstacle.exterior.coords))
+                intersections = polygons.intersection(line)
+                if intersections:
+                    for points in intersections:
+                        if points:
+                            possible_scans.append((points.x,points.y))
+            
+            scan.append(compute_length(pose,possible_scans))
+        print(len(scan))
+        return scan
+            
+            
 
 
-
-
+def compute_length(pose, possible_scans):
+    
+    lengths = []
+    min_ = 100
+    min_index = 0
+    for index,i in enumerate(possible_scans):
+        x = i[0]
+        y = i[1]
+        dist = math.sqrt((pose.x-x)**2 + (pose.y-y)**2)
+        if dist < min_:
+            min_ = dist
+            min_index = x,y
+    return min_index
 
 
 def main():
     
+    pose = Pose(-7,-1.5,0)
+   
     makeWorld('grid1.txt',3)
     a = createGaussian([0,0,0], [2,2,2] ,5)
-    
-#    if os.name == 'nt':
-#        clear = lambda: os.system('!CLS')
-    print '\033[H\033[J'
-#    else:
-#        clear = lambda: os.system('!clear')
-    
-    
-    
-    
-    
-    
     plt.gcf().clear()
     
     graph = True
     if graph:
         fig, ax = plt.subplots(1,1,figsize = (10,10))
-#        plt.gcf().clear()    
         time.sleep(.01)
         drawWorld(ax)
-        ax.plot(rnd.uniform(-6, 4),rnd.uniform(-6, 4), 'ro', markersize = 5)
+        ax.plot(pose.x,pose.y,'ro', markersize=5)
+        scans = generate_scans_for_particles(pose)
+        print(scans)
+        for parts in scans:
+            if parts != 0:
+                ax.plot(parts[0],parts[1], 'ro', markersize = 5)
+        
         plt.show()
-#            clear()
+    
         time.sleep(.01)
-#        print str(ax.axes)
 
 
 
