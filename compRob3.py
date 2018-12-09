@@ -28,8 +28,11 @@ worldBounds = [[-5,1],[-3,-2]]    #bounds of the world/room
 Pi = math.pi
 obstacles = []
 particles = []
-nodes = [] #tuple of (node, weight)
+weights = []
+#Nodes = [] #tuple of (node, weight)
 distribution = None
+N = 1000
+NTh = N/2
 
 class Pose():
     def __init__(self, x, y, theta):
@@ -160,23 +163,28 @@ def reweight(weights, particles):
         
 
 def createUniform(xRange, yRange, rRange, N):
+    global particles, weights
     particles = np.empty((N, 3))
     particles[:, 0] = uniform(xRange[0],xRange[1], size=N)
     particles[:, 1] = uniform(yRange[0],yRange[1], size=N)
     particles[:, 2] = uniform(rRange[0],rRange[1], size=N)
     particles[:, 2] %= 2 * Pi
     particles[:, 2] -= Pi #to make it range -Pi to Pi
-    
+    weights = np.empty((N,1))
+    weights.fill(1.0/N)
     return particles
 
 def createGaussian(meanVec, stdVec, N):
+    global particles, weights
     particles = np.empty((N, 3))
     particles[:, 0] = meanVec[0] + (randn(N) * stdVec[0])
     particles[:, 1] = meanVec[1] + (randn(N) * stdVec[1])
     particles[:, 2] = meanVec[2] + (randn(N) * stdVec[2])
     particles[:, 2] %= 2 * Pi
     particles[:, 2] -= Pi
-    
+    weights = np.empty((N,1))
+    weights.fill(1.0/N)
+
     return particles
     
 def init_particles():
@@ -187,6 +195,7 @@ def init_particles():
         
     return 
     
+"""
 def resample(particles, weights):
     
     N = len(weights)
@@ -203,11 +212,14 @@ def resample(particles, weights):
     particles[:] = particles[indexes]
     weights[:] = weights[indexes]
     weights.fill(1.0 / len(weights))
+"""
+
 
 def predict(particles, u, std, dt=1.):
     """ move according to control input u (heading change, velocity)
     with noise Q (std heading change, std velocity)`"""
-
+    global particles
+    
     N = len(particles)
     # update heading
     particles[:, 2] += u[0] + (randn(N) * std[0])
@@ -221,26 +233,77 @@ def predict(particles, u, std, dt=1.):
 
     return particles
 
-  
-#def update(particles, weights, z, R):
-#    for i, landmark in enumerate(landmarks):
-#        distance = np.linalg.norm(particles[:, 0:2] - landmark, axis=1)
-#        weights *= scipy.stats.norm(distance, R).pdf(z[i])
-#
-#    weights += 1.e-300      # avoid round-off to zero
-#    weights /= sum(weights) # normalize    
+
+def likelihood(distance, measured, noise = 1): #measured distance 
+    distance = distance - measured
+    prob = 1/(2*Pi)**0.5
+    prob /= noise
+    prob *= -1* distance**2 /(2*noise**2)
+    return prob
     
 
-def resample():
-    N = len(particles)
-    cumulative_sum = np.cumsum(weights)
-    cumulative_sum[-1] = 1. # avoid round-off error
-    indexes = np.searchsorted(cumulative_sum, random(N))
+def updateWeights(particles, measuredLengths):
+    global weights, particles
+    
+    for i in range(len(weights)):
+        x = particles[i,0]
+        y = particles[i,1]
+        z = particles[i,2]
+        scans = generate_scans_for_particles(Pose(x,y,z))
+        for j in len(scans):
+            prob = likelihood(scans[j], measuredLengths[j])
+            weights[i] *= prob
+        weights[i] += 1.e-300      # avoid round-off to zero
+    
+    for i in range(len(weights)):
+        weights[i] /= sum(weights) # normalize 
+    
+    return weights
+    
+    
 
-    # resample according to indexes
+def resample_from_index(indexes):
+    global particles, weights
+    
     particles[:] = particles[indexes]
-    weights.fill(1.0 / N)
+    weights[:] = weights[indexes]
+    weights.fill(1.0 / len(weights))
+    
+    return particles
 
+def systematic_resample(weights):
+    N = len(weights)
+
+    # make N subdivisions, choose positions 
+    # with a consistent random offset
+    randNum = rnd.random()
+    positions = (np.arange(N) + randNum) / N
+
+    indexes = np.zeros(N, 'i')
+    cumulative_sum = np.cumsum(weights)
+    i, j = 0, 0
+    while i < N:
+        if positions[i] < cumulative_sum[j]:
+            indexes[i] = j
+            i += 1
+        else:
+            j += 1
+    return indexes
+
+
+def resample():
+    global weights, particles
+   
+    neff =  1. / np.sum(np.square(weights))
+    if neff < NTh:
+        indexes = systematic_resample(weights)
+        resample_from_index(particles, weights, indexes)
+
+    
+        
+        
+
+    return particles
 
 
 def propagate():
