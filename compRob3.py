@@ -243,7 +243,7 @@ def resample():
     if neff < NTh:
         indexes = systematic_resample(weights)
         resample_from_index(indexes)
-        assert np.allclose(weights, 1/N)
+#        assert np.allclose(weights, 1/N)
 
 
     return particles
@@ -316,7 +316,7 @@ def generate_scans_for_particles(pose):
                 polygons = LinearRing(list(obstacle.exterior.coords))
                 intersections = polygons.intersection(line)
                 if intersections:
-                    if type(intersections) != list:
+                    if intersections.type == 'Point':
                         possible_scans.append((intersections.x,intersections.y))
                     else:
                         for points in intersections:
@@ -347,7 +347,7 @@ def compute_length(pose, possible_scans):
             min_ = dist
             min_index = x,y
     if min_ == 100:
-        min_ = 0
+        min_ = -1
     if min_index == 0:
         min_index = 0,0
     return (min_index, min_)
