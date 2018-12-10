@@ -23,6 +23,7 @@ import matplotlib.patches as ptc
 import pandas as pd 
 import random as rnd
 import read_file as rd
+import scipy
 
 
 worldBounds = [[-5,1],[-3,-2]]    #bounds of the world/room
@@ -30,9 +31,10 @@ Pi = math.pi
 obstacles = []
 particles = []
 weights = []
+noise = [] #tuple of (scan noise, trans noise, rotation noise)
 #Nodes = [] #tuple of (node, weight)
 distribution = None
-N = 100
+N = 150
 NTh = N/2
 INITIAL_HEADING = Pi/2
 iterParticles = []
@@ -141,12 +143,8 @@ def visualize(est, real):
 
     while i < len(real):
         
-        particle_list = est[i]
-                                 
-        
+        particle_list = est[i]   
         real1 = real[i]
-#        print real[i]
-#        print real1
 
         i+=1
         if True:
@@ -194,18 +192,19 @@ def createGaussian(meanVec, stdVec):
 
 
 
-def predict(u, std):
+def predict(u):
     """ move according to control input u (heading change, velocity)
     with noise Q (std heading change, std velocity)`"""
     global particles
+    global noise
     
     N = len(particles)
     # update heading
-    particles[:, 2] += np.random.normal(u[1],std[1])
-    particles[:, 2] %= 2 * Pi
+    particles[:, 2] += np.random.normal(u[1],noise[2])
+#    particles[:, 2] %= 2 * Pi
 
     # move in the (noisy) commanded direction
-    dist = np.random.normal(u[0],std[0])
+    dist = np.random.normal(u[0],noise[1])
     particles[:, 0] += np.cos(particles[:, 2]) * dist
     particles[:, 1] += np.sin(particles[:, 2]) * dist
     
@@ -214,10 +213,8 @@ def predict(u, std):
 
 def likelihood(distance, measured, noise = 1): #measured distance 
     
-    distance = distance - measured
-    prob = 1/(2*Pi)**0.5
-    prob /= noise
-    prob *= -1* distance**2 /(2*noise**2)
+    prob = scipy.stats.norm(measured, noise).pdf(distance)
+    
     return prob
     
 
@@ -228,6 +225,7 @@ def updateWeights(measuredLengths):
         x = particles[i,0]
         y = particles[i,1]
         z = particles[i,2]
+
         scans = generate_scans_for_particles(Pose(x,y,z))
 #        print 'measured', len(measuredLengths)
 #        print 'scans', len(scans)
@@ -235,6 +233,8 @@ def updateWeights(measuredLengths):
             if measuredLengths[j] == -1.0:
                 continue
             prob = likelihood(scans[j], measuredLengths[j])
+#            prob = likelihood(measuredLengths[j], measuredLengths[j])
+
             weights[i] *= prob
         weights[i] += 1.e-300      # avoid round-off to zero
     
@@ -293,7 +293,12 @@ def resample():
 
 def particleFilter(iterations, graph = False):
     global particles, weights, iterParticles, iterReal
+    
     createUniform(worldBounds[0], worldBounds[1], [-Pi, Pi])
+    meanVec = [rd.start_pos[0],rd.start_pos[1],INITIAL_HEADING]
+    stdVec = [1, 1, Pi/6]
+    createGaussian(meanVec, stdVec)
+    
     prevHeading = INITIAL_HEADING   
     
     startPos = np.array([rd.start_pos[0],rd.start_pos[1], INITIAL_HEADING])
@@ -309,9 +314,9 @@ def particleFilter(iterations, graph = False):
         angleChange = rd.noisy_heading[i] - prevHeading
         prevHeading = rd.noisy_heading[i]
         distanceChange = rd.noisy_distance[i]
-        noise = [.0000001, .0000001]
         
-        predict([distanceChange, angleChange], noise)
+        
+        predict([distanceChange, angleChange])
         updateWeights(rd.scan_data[i])
         resample()
         
@@ -327,10 +332,10 @@ def particleFilter(iterations, graph = False):
 def compute_x_y(pose):
     x = pose.x
     y = pose.y
-    theta = pose.z - Pi/2
+    theta = pose.z
     
-    new_y = 10
-    new_x = math.tan(theta)*new_y
+    new_y = math.sin(theta)*10
+    new_x = math.cos(theta)*10
     
     return Pose(new_x, new_y, theta)
     
@@ -344,6 +349,7 @@ def generate_scans_for_particles(pose):
         STEP_SIZE = 0.019652407
         
         steps = np.arange(theta_start, theta_stop, STEP_SIZE)
+        steps = steps[::-1]
 #        print(len(steps))
         scan = []
         distance = []
@@ -400,20 +406,33 @@ def compute_length(pose, possible_scans):
     return (min_index, min_)
 
 
-def main():
+def main(scan_n = 0.1, trans_n = 0.1, rot_n = 0.1):
     global INITIAL_HEADING
+    global noise
     
+    noise = (scan_n, trans_n, rot_n)
     INITIAL_HEADING = Pi/2
-    pose = Pose(-7,-1.5,0)
+    
+    
+    
+    
     rd.readFile('trajectories_1.txt')
-#    rd.print_all()
     makeWorld('grid1.txt',3)
     print 'total iterations', len(rd.position)
     particleFilter(len(rd.position), graph =True)
     
 
-
-
+"""
+    pose = Pose(-6,-1.5,Pi)
+    x,y = generate_scans_for_particles(pose)
+    fig, ax = plt.subplots(1,1,figsize = (10,10))
+    drawWorld(ax)
+    ax.plot(pose.x, pose.y, 'bo')
+    print y
+    for val in y:
+        ax.plot(val[0],val[1], 'ro')
+        
+        """
 
 if __name__ == '__main__':
     main()
