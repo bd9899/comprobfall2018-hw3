@@ -76,13 +76,20 @@ def readFile(trajectory_filename = 'trajectories_1.txt'):
             noisy_distance.append(float(b[1]))
         elif a[0] == 'scan_data:':
             line = f.readline().strip()
-            b = line.strip("ranges: []")
+#            print 'LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL'
+            b = line.strip("ranges: [")
+            b = b.replace(']','')
+#            print line
+
             c = b.split(' ')
+#            print 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC'
+#            print c
+            
             t = []
             for x in c:
                 x = x.strip(',')
-               
-                if x =='nan':
+                
+                if x =='nan' or x == 'nan]':
                     t.append(-1.0)
                 elif x == '':
                     continue
