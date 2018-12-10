@@ -34,6 +34,7 @@ weights = []
 distribution = None
 N = 100
 NTh = N/2
+INITIAL_HEADING = Pi/2
 
 class Pose():
     def __init__(self, x, y, theta):
@@ -117,6 +118,41 @@ def makeWorld(fileName,k):
         lines = lines[1::]
     return poly
 
+def visualize(est, real):
+    xEst = np.zeros((3, 1))
+    xTrue = np.zeros((3, 1))
+    
+    hxEst = xEst
+    hxTrue = xTrue
+    time = 0
+    i = 0
+    while 50 >= time and i < len(real):
+        time += 0.01
+        print(hxEst)
+        
+        est1 = np.array(est[i])
+        est1 = est1.reshape((3,1))
+        print(est1)
+        
+        real1 = np.array(real[i])
+        real1 = real1.reshape((3,1))
+        print(real1)
+
+        hxEst = np.hstack((hxEst, est1))
+        hxTrue = np.hstack((hxTrue, real1))
+        i+=1
+        if True:
+            plt.cla()
+
+            print(hxTrue)
+            plt.plot(np.array(hxTrue[0, :]).flatten(),
+                     np.array(hxTrue[1, :]).flatten(), "-b")
+
+            plt.plot(np.array(hxEst[0, :]).flatten(),
+                     np.array(hxEst[1, :]).flatten(), "-r")
+            plt.axis("equal")
+            plt.grid(True)
+            plt.show()
         
 
 def createUniform(xRange, yRange, rRange):
@@ -188,9 +224,10 @@ def updateWeights(measuredLengths):
         y = particles[i,1]
         z = particles[i,2]
         scans = generate_scans_for_particles(Pose(x,y,z))
-        
+#        print 'measured', len(measuredLengths)
+#        print 'scans', len(scans)
         for j in range(len(scans)):
-            if measuredLengths[j] == float('nan'):
+            if measuredLengths[j] == -1.0:
                 continue
             prob = likelihood(scans[j], measuredLengths[j])
             weights[i] *= prob
@@ -249,12 +286,17 @@ def resample():
     return particles
 
 
-def particleFilter(iterations):
+def particleFilter(iterations, graph = False):
     global particles, weights
     createUniform(worldBounds[0], worldBounds[1], [-Pi, Pi])
-    prevHeading = 0.0
-    for i in range(iterations):
+    prevHeading = INITIAL_HEADING
+    if graph:
+        startPos = np.array([rd.start_pos[0],rd.start_pos[1], INITIAL_HEADING])
+        visualize(particles, startPos)
+        
+    for i in range(iterations):        
         print 'iterations', i
+
 #        print 'heading'
 #        print rd.noisy_heading[i]
 #        print 'distance'
@@ -274,6 +316,9 @@ def particleFilter(iterations):
         updateWeights(rd.scan_data[i])
         resample()
         
+        if graph:
+            realPos = np.array([rd.position[i]])
+            visualize(particles, realPos)
     return particles, weights        
     
 
@@ -354,12 +399,15 @@ def compute_length(pose, possible_scans):
 
 
 def main():
+    global INITIAL_HEADING
     
+    INITIAL_HEADING = Pi/2
     pose = Pose(-7,-1.5,0)
     rd.readFile('trajectories_1.txt')
+#    rd.print_all()
     makeWorld('grid1.txt',3)
-    
-    particleFilter(len(rd.position))
+    print 'total iterations', rd.position
+    particleFilter(len(rd.position), graph =True)
     
     
     
