@@ -204,12 +204,12 @@ def predict(u, std):
     
     N = len(particles)
     # update heading
-    particles[:, 2] += np.random.normal(u[1],std[1])
+    particles[:, 2] += np.random.normal(u[1],std)
     particles[:, 2] %= 2 * Pi
     particles[:, 2] -= Pi
 
     # move in the (noisy) commanded direction
-    dist = np.random.normal(u[0],std[0])
+    dist = np.random.normal(u[0],std)
     particles[:, 0] += np.cos(particles[:, 2]) * dist
     particles[:, 1] += np.sin(particles[:, 2]) * dist
 
@@ -217,6 +217,7 @@ def predict(u, std):
 
 
 def likelihood(distance, measured, noise = 1): #measured distance 
+    
     distance = distance - measured
     prob = 1/(2*Pi)**0.5
     prob /= noise
@@ -232,7 +233,7 @@ def updateWeights(measuredLengths):
         y = particles[i,1]
         z = particles[i,2]
         scans = generate_scans_for_particles(Pose(x,y,z))
-        for j in len(scans):
+        for j in range(len(scans)):
             prob = likelihood(scans[j], measuredLengths[j])
             weights[i] *= prob
         weights[i] += 1.e-300      # avoid round-off to zero
@@ -279,7 +280,7 @@ def resample():
     neff =  1. / np.sum(np.square(weights))
     if neff < NTh:
         indexes = systematic_resample(weights)
-        resample_from_index(particles, weights, indexes)
+        resample_from_index(indexes)
         assert np.allclose(weights, 1/N)
 
 
@@ -335,6 +336,7 @@ def generate_scans_for_particles(pose):
         steps = np.arange(theta_start, theta_stop, STEP_SIZE)
 #        print(len(steps))
         scan = []
+        distance = []
         
         for i in range(54):
             x = pose.x
@@ -351,13 +353,19 @@ def generate_scans_for_particles(pose):
                 polygons = LinearRing(list(obstacle.exterior.coords))
                 intersections = polygons.intersection(line)
                 if intersections:
-                    for points in intersections:
-                        if points:
-                            possible_scans.append((points.x,points.y))
+                    if intersections.type == "Point":
+                        possible_scans.append((intersections.x,intersections.y))
+                    else:
+                        for points in intersections:
+                            if points:
+                                possible_scans.append((points.x,points.y))
+                            
+            x = compute_length(pose,possible_scans)
+            #print(x)
+            scan.append(x[0])
+            distance.append(x[1])
             
-            scan.append(compute_length(pose,possible_scans))
-        print(len(scan))
-        return scan
+        return distance
             
             
 
@@ -367,6 +375,7 @@ def compute_length(pose, possible_scans):
     lengths = []
     min_ = 100
     min_index = 0
+    dist = 0
     for index,i in enumerate(possible_scans):
         x = i[0]
         y = i[1]
@@ -374,7 +383,11 @@ def compute_length(pose, possible_scans):
         if dist < min_:
             min_ = dist
             min_index = x,y
-    return min_index
+    if min_ == 100:
+        min_ = 0
+    if min_index == 0:
+        min_index = 0,0
+    return (min_index, min_)
 
 
 def main():
@@ -395,11 +408,7 @@ def main():
         time.sleep(.01)
         drawWorld(ax)
         ax.plot(pose.x,pose.y,'ro', markersize=5)
-        scans = generate_scans_for_particles(pose)
-        print(scans)
-        for parts in scans:
-            if parts != 0:
-                ax.plot(parts[0],parts[1], 'ro', markersize = 5)
+        
         
         plt.show()
     
