@@ -32,7 +32,7 @@ particles = []
 weights = []
 #Nodes = [] #tuple of (node, weight)
 distribution = None
-N = 1000
+N = 100
 NTh = N/2
 
 class Pose():
@@ -42,43 +42,7 @@ class Pose():
         self.z = theta
         
 
-class Node():
-    pos = [0,0,0]
-    x = 0
-    y = 0
-    r = 0
-    
-    def __str__(self):
-        temp = 'Position: ' + '('+ str(self.x)
-        temp += ', ' + str(self.y) + ')' + ' Rotation: ' + str(self.r)
-        return temp
-    def setPos(self,x,y): #set position of Node at x,y,z
-        self.x = x
-        self.y = y
-        self.pos[0] = x
-        self.pos[1] = y
-        return self.pos
-    
-    def setRot(self, angle):
-        self.r = angle
-        self.pos[2] = angle
-        return self.pos
-
-def makeNode(posX, posY, rotation): #generates a random node with random Quaternion/position
-    node = Node()
-#    global worldBounds
-#    bounds = worldBounds
-#    posX = rnd.random()*(bounds[0][1]-bounds[0][0]) + bounds[0][0] 
-#    posY = rnd.random()*(bounds[1][1]-bounds[1][0]) + bounds[1][0] 
-#    rotation = rnd.random()*(2*Pi)-Pi
-    node.pos = [posX,posY, rotation]
-    node.x = posX
-    node.y = posY
-    node.r = rotation
-    
-    return node
-
-
+"""
 
 def func():
     N = 20000  # number of points
@@ -106,7 +70,7 @@ def func():
     
     fig, ax = plt.subplots(1,1)
     plot_gaussian_pdf(mean=2, variance=3);
-    
+  """  
 
 def drawWorld(ax):
     minX = worldBounds[0][0]
@@ -153,17 +117,9 @@ def makeWorld(fileName,k):
         lines = lines[1::]
     return poly
 
-def reweight(weights, particles):
-    probability = []    
-    for particle in particles:
-        x_est = particle.x
-        y_est = particle.y
-        theta_est = particle.theta
-        
-        
         
 
-def createUniform(xRange, yRange, rRange, N):
+def createUniform(xRange, yRange, rRange):
     global particles, weights
     particles = np.empty((N, 3))
     particles[:, 0] = uniform(xRange[0],xRange[1], size=N)
@@ -175,7 +131,7 @@ def createUniform(xRange, yRange, rRange, N):
     weights.fill(1.0/N)
     return particles
 
-def createGaussian(meanVec, stdVec, N):
+def createGaussian(meanVec, stdVec):
     global particles, weights
     particles = np.empty((N, 3))
     particles[:, 0] = meanVec[0] + (randn(N) * stdVec[0])
@@ -204,15 +160,14 @@ def predict(u, std):
     
     N = len(particles)
     # update heading
-    particles[:, 2] += np.random.normal(u[1],std)
+    particles[:, 2] += np.random.normal(u[1],std[1])
     particles[:, 2] %= 2 * Pi
-    particles[:, 2] -= Pi
 
     # move in the (noisy) commanded direction
-    dist = np.random.normal(u[0],std)
+    dist = np.random.normal(u[0],std[0])
     particles[:, 0] += np.cos(particles[:, 2]) * dist
     particles[:, 1] += np.sin(particles[:, 2]) * dist
-
+    
     return particles
 
 
@@ -233,7 +188,10 @@ def updateWeights(measuredLengths):
         y = particles[i,1]
         z = particles[i,2]
         scans = generate_scans_for_particles(Pose(x,y,z))
+        
         for j in range(len(scans)):
+            if measuredLengths[j] == float('nan'):
+                continue
             prob = likelihood(scans[j], measuredLengths[j])
             weights[i] *= prob
         weights[i] += 1.e-300      # avoid round-off to zero
@@ -266,6 +224,10 @@ def systematic_resample(weights):
     weightSum = np.cumsum(weights)
     i, j = 0, 0
     while i < N:
+        if i == 100:
+            print 'i'
+        if j == 100:
+            print 'j'
         if positions[i] < weightSum[j]:
             indexes[i] = j
             i += 1
@@ -289,9 +251,10 @@ def resample():
 
 def particleFilter(iterations):
     global particles, weights
-    createUniform(worldBounds[0], worldBounds[1], [-Pi, Pi], N)
+    createUniform(worldBounds[0], worldBounds[1], [-Pi, Pi])
     prevHeading = 0.0
     for i in range(iterations):
+        print 'iterations', i
 #        print 'heading'
 #        print rd.noisy_heading[i]
 #        print 'distance'
@@ -305,7 +268,7 @@ def particleFilter(iterations):
         angleChange = rd.noisy_heading[i] - prevHeading
         prevHeading = rd.noisy_heading[i]
         distanceChange = rd.noisy_distance[i]
-        noise = 0
+        noise = [.0000001, .0000001]
         
         predict([distanceChange, angleChange], noise)
         updateWeights(rd.scan_data[i])
@@ -353,7 +316,7 @@ def generate_scans_for_particles(pose):
                 polygons = LinearRing(list(obstacle.exterior.coords))
                 intersections = polygons.intersection(line)
                 if intersections:
-                    if intersections.type == "Point":
+                    if type(intersections) != list:
                         possible_scans.append((intersections.x,intersections.y))
                     else:
                         for points in intersections:

@@ -17,7 +17,7 @@ scan_data = []
 start_pos = 0
 std_dev = 0
 
-def readFile(trajectory_filename):
+def readFile(trajectory_filename = 'trajectories_1.txt'):
     
     f = open('turtlebot_maps/trajectories/' + trajectory_filename, 'r')
     while True:
