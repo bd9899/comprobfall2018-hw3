@@ -35,6 +35,8 @@ distribution = None
 N = 100
 NTh = N/2
 INITIAL_HEADING = Pi/2
+iterParticles = []
+iterReal = []
 
 class Pose():
     def __init__(self, x, y, theta):
@@ -116,56 +118,66 @@ def makeWorld(fileName,k):
         poly = geometry.Polygon(obs.get_xy())
         obstacles.append(poly)
         lines = lines[1::]
+        
+    
+    worldEdgeList = []
+    worldEdgeList.append([[minX-.5, minY-.5], [minX-.5, minY], [maxX + .5, minY], [maxX + .5, minY-.5], [minX-.5, minY-.5]])
+    worldEdgeList.append([[minX-.5, maxY+.5], [minX-.5, maxY], [maxX + .5, maxY], [maxX + .5, maxY+.5], [minX-.5, maxY+.5]])
+    worldEdgeList.append([[minX-.5, minY-.5], [minX-.5, maxY+.5], [minX, maxY+.5], [minX, minY-.5], [minX-.5, minY-.5]])
+    worldEdgeList.append([[maxX+.5, minY-.5], [maxX+.5, maxY+.5], [maxX, maxY+.5], [maxX, minY-.5], [maxX+.5, minY-.5]])
+    
+    for vertices in worldEdgeList:
+        obs = ptc.Polygon(vertices)
+        poly = geometry.Polygon(obs.get_xy())
+        obstacles.append(poly)
+    
     return poly
 
 def visualize(est, real):
     xEst = np.zeros((3, 1))
     xTrue = np.zeros((3, 1))
-    
-    hxEst = xEst
-    hxTrue = xTrue
-    time = 0
-    i = 0
-    while 50 >= time and i < len(real):
-        time += 0.01
-        print(hxEst)
-        
-        est1 = np.array(est[i])
-        est1 = est1.reshape((3,1))
-        print(est1)
-        
-        real1 = np.array(real[i])
-        real1 = real1.reshape((3,1))
-        print(real1)
 
-        hxEst = np.hstack((hxEst, est1))
-        hxTrue = np.hstack((hxTrue, real1))
+    i = 0
+
+    while i < len(real):
+        
+        particle_list = est[i]
+                                 
+        
+        real1 = real[i]
+#        print real[i]
+#        print real1
+
         i+=1
         if True:
-            plt.cla()
+            fig, ax = plt.subplots(1,1,figsize = (10,10))
+            drawWorld(ax)
 
-            print(hxTrue)
-            plt.plot(np.array(hxTrue[0, :]).flatten(),
-                     np.array(hxTrue[1, :]).flatten(), "-b")
-
-            plt.plot(np.array(hxEst[0, :]).flatten(),
-                     np.array(hxEst[1, :]).flatten(), "-r")
-            plt.axis("equal")
-            plt.grid(True)
+            ax.plot(real1[0],real1[1], "bo")
+            for parts in particle_list:
+#                print(parts)
+                ax.plot(parts[0],parts[1], "ro", markersize = 5)
+            
+            ax.set_title('Iteration: ' + str(i-1))
             plt.show()
         
 
 def createUniform(xRange, yRange, rRange):
-    global particles, weights
-    particles = np.empty((N, 3))
-    particles[:, 0] = uniform(xRange[0],xRange[1], size=N)
-    particles[:, 1] = uniform(yRange[0],yRange[1], size=N)
-    particles[:, 2] = uniform(rRange[0],rRange[1], size=N)
-    particles[:, 2] %= 2 * Pi
-    particles[:, 2] -= Pi #to make it range -Pi to Pi
+    global particles, weights, N
+    
+    for i in range(N):
+        xRand = rnd.random()*(xRange[1]-xRange[0]) + xRange[0]
+        yRand = rnd.random()*(yRange[1]-yRange[0]) + yRange[0]
+        rRand = rnd.random()*(rRange[1]-rRange[0]) + rRange[0]
+        particles.append([xRand, yRand, rRand])
+    
+    particles = np.array(particles)
     weights = np.empty((N,1))
     weights.fill(1.0/N)
-    return particles
+    
+    
+    
+
 
 def createGaussian(meanVec, stdVec):
     global particles, weights
@@ -179,14 +191,7 @@ def createGaussian(meanVec, stdVec):
     weights.fill(1.0/N)
 
     return particles
-    
-def init_particles():
-    global particles
-    N = len(particles)
-    for particle in particles:
-        particle = 1.0/N
-        
-    return 
+
 
 
 def predict(u, std):
@@ -287,25 +292,19 @@ def resample():
 
 
 def particleFilter(iterations, graph = False):
-    global particles, weights
+    global particles, weights, iterParticles, iterReal
     createUniform(worldBounds[0], worldBounds[1], [-Pi, Pi])
-    prevHeading = INITIAL_HEADING
-    if graph:
-        startPos = np.array([rd.start_pos[0],rd.start_pos[1], INITIAL_HEADING])
-        visualize(particles, startPos)
+    prevHeading = INITIAL_HEADING   
+    
+    startPos = np.array([rd.start_pos[0],rd.start_pos[1], INITIAL_HEADING])
+    iterParticles.append(particles.copy())
+    
+    iterReal.append(startPos)
+    
         
     for i in range(iterations):        
         print 'iterations', i
 
-#        print 'heading'
-#        print rd.noisy_heading[i]
-#        print 'distance'
-#        print rd.noisy_distance[i]
-#        print
-#        print rd.scan_data[i]
-#        print 'done'
-        
-        ##counter clockwise spin is positive
         
         angleChange = rd.noisy_heading[i] - prevHeading
         prevHeading = rd.noisy_heading[i]
@@ -316,16 +315,19 @@ def particleFilter(iterations, graph = False):
         updateWeights(rd.scan_data[i])
         resample()
         
-        if graph:
-            realPos = np.array([rd.position[i]])
-            visualize(particles, realPos)
+        realPos = np.array(rd.position[i])
+        iterParticles.append(particles.copy())
+        iterReal.append(realPos)
+        
+    if graph:
+        visualize(iterParticles, iterReal)
     return particles, weights        
     
 
 def compute_x_y(pose):
     x = pose.x
     y = pose.y
-    theta = pose.z
+    theta = pose.z - Pi/2
     
     new_y = 10
     new_x = math.tan(theta)*new_y
@@ -406,24 +408,10 @@ def main():
     rd.readFile('trajectories_1.txt')
 #    rd.print_all()
     makeWorld('grid1.txt',3)
-    print 'total iterations', rd.position
+    print 'total iterations', len(rd.position)
     particleFilter(len(rd.position), graph =True)
     
-    
-    
-    plt.gcf().clear()
-    
-    graph = True
-    if graph:
-        fig, ax = plt.subplots(1,1,figsize = (10,10))
-        time.sleep(.01)
-        drawWorld(ax)
-        ax.plot(pose.x,pose.y,'ro', markersize=5)
-        
-        
-        plt.show()
-    
-        time.sleep(.01)
+
 
 
 
