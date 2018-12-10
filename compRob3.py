@@ -229,15 +229,18 @@ def updateWeights(measuredLengths):
         scans = generate_scans_for_particles(Pose(x,y,z))
 #        print 'measured', len(measuredLengths)
 #        print 'scans', len(scans)
+#        weights[i] = math.log(weights[i])
         for j in range(len(scans)):
             if measuredLengths[j] == -1.0:
                 continue
             prob = likelihood(scans[j], measuredLengths[j])
 #            prob = likelihood(measuredLengths[j], measuredLengths[j])
 
+#            weights[i] += math.log(prob)
             weights[i] *= prob
         weights[i] += 1.e-300      # avoid round-off to zero
     
+#        weights[i] = math.e**weights[i]
     for i in range(len(weights)):
         weights[i] /= sum(weights) # normalize 
     
@@ -287,7 +290,6 @@ def resample():
         resample_from_index(indexes)
 #        assert np.allclose(weights, 1/N)
 
-
     return particles
 
 
@@ -296,7 +298,7 @@ def particleFilter(iterations, graph = False):
     
     createUniform(worldBounds[0], worldBounds[1], [-Pi, Pi])
     meanVec = [rd.start_pos[0],rd.start_pos[1],INITIAL_HEADING]
-    stdVec = [1, 1, Pi/6]
+    stdVec = [1, 1, Pi/4]
     createGaussian(meanVec, stdVec)
     
     prevHeading = INITIAL_HEADING   
@@ -411,8 +413,7 @@ def main(scan_n = 0.1, trans_n = 0.1, rot_n = 0.1):
     global noise
     
     noise = (scan_n, trans_n, rot_n)
-    INITIAL_HEADING = Pi/2
-    
+    INITIAL_HEADING = 0    
     
     
     
