@@ -352,16 +352,52 @@ def compute_length(pose, possible_scans):
         min_index = 0,0
     return (min_index, min_)
 
+def visualize(est, real):
+    xEst = np.zeros((3, 1))
+    xTrue = np.zeros((3, 1))
+    
+    hxEst = xEst
+    hxTrue = xTrue
+    time = 0
+    i = 0
+    while 50 >= time and i < len(real):
+        time += 0.01
+        print(hxEst)
+        
+        est1 = np.array(est[i])
+        est1 = est1.reshape((3,1))
+        print(est1)
+        
+        real1 = np.array(real[i])
+        real1 = real1.reshape((3,1))
+        print(real1)
 
+        hxEst = np.hstack((hxEst, est1))
+        hxTrue = np.hstack((hxTrue, real1))
+        i+=1
+        if True:
+            plt.cla()
+
+            print(hxTrue)
+            plt.plot(np.array(hxTrue[0, :]).flatten(),
+                     np.array(hxTrue[1, :]).flatten(), "-b")
+
+            plt.plot(np.array(hxEst[0, :]).flatten(),
+                     np.array(hxEst[1, :]).flatten(), "-r")
+            plt.axis("equal")
+            plt.grid(True)
+            plt.show()
 def main():
     
     pose = Pose(-7,-1.5,0)
     rd.readFile('trajectories_1.txt')
     makeWorld('grid1.txt',3)
     
-    particleFilter(len(rd.position))
+    #particleFilter(len(rd.position))
     
-    
+    est = [[1,2,2], [2,1,2], [4,4,2],[7,7,7]]
+    real = [[1,1,1],[1,1,1],[5,5,5],[7,7,7]]
+    visualize(est, real)
     
     plt.gcf().clear()
     
