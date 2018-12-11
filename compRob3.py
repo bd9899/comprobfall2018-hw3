@@ -34,7 +34,7 @@ weights = []
 noise = [] #tuple of (scan noise, trans noise, rotation noise)
 #Nodes = [] #tuple of (node, weight)
 distribution = None
-N = 150
+N = 1000
 NTh = N/2
 INITIAL_HEADING = Pi/2
 iterParticles = []
@@ -183,9 +183,9 @@ def createGaussian(meanVec, stdVec):
     particles = np.empty((N, 3))
     particles[:, 0] = meanVec[0] + (randn(N) * stdVec[0])
     particles[:, 1] = meanVec[1] + (randn(N) * stdVec[1])
-    particles[:, 2] = meanVec[2] + (randn(N) * stdVec[2])
-    particles[:, 2] %= 2 * Pi
-    particles[:, 2] -= Pi
+    particles[:, 2] = rnd.uniform(-.1,.05)#meanVec[2] + (randn(N) * stdVec[2])
+    #particles[:, 2] %= 2 * Pi
+    #particles[:, 2] -= Pi
     weights = np.empty((N,1))
     weights.fill(1.0/N)
 
@@ -208,7 +208,6 @@ def predict(u):
     dist = np.random.normal(u[0],noise[1])
     particles[:, 0] += np.cos(particles[:, 2]) * dist
     particles[:, 1] += np.sin(particles[:, 2]) * dist
-    
     return particles
 
 
@@ -281,14 +280,50 @@ def systematic_resample(weights):
             j += 1
     return indexes
 
+def grabTop5():
+    global weights
+    
+    sort_list = weights.copy()
+    sort_list = np.argsort(sort_list)
+    return sort_list[:6]
 
+def takeDistribution(mu, signma):
+    global N
+    return np.random.normal(mu, signma, size=N/5).reshape((N/5,1))
+    
 def resample():
     global weights, particles
-   
-    neff =  1. / np.sum(np.square(weights))
-    if neff < NTh:
-        indexes = systematic_resample(weights)
-        resample_from_index(indexes)
+    unique_particles = set()
+    org_weights = []
+    
+    for i in range(len(weights)):
+        org_weights.append(float(weights[i]))
+        
+    for i in range(len(org_weights)):
+        unique_particles.add(org_weights[i])
+        
+    if len(unique_particles) < N/10:
+        top5 = grabTop5()
+        resample_particles = []
+        for values in range(len(top5)):
+            
+            pose = particles[top5[values],:]
+            print(pose)
+            X = takeDistribution(float(pose[0][0]),.2)
+            Y = takeDistribution(float(pose[0][1]),.2)
+            Z = takeDistribution(float(pose[0][2]),Pi/10)
+            temp = np.concatenate((X,Y,Z), axis=1)
+            if len(resample_particles) == 0:
+                    resample_particles = temp.copy()
+            else:
+                resample_particles = np.concatenate((resample_particles, temp ))
+        particles = resample_particles
+        particles = np.array(particles)
+        
+#    neff =  1. / np.sum(np.square(weights))
+#    if neff < NTh:
+#        indexes = systematic_resample(weights)
+#        resample_from_index(indexes)
 #        assert np.allclose(weights, 1/N)
 
     return particles
