@@ -164,9 +164,10 @@ def createUniform(xRange, yRange, rRange):
     global particles, weights, N
     
     for i in range(N):
-        xRand = rnd.random()*(xRange[1]-xRange[0]) + xRange[0]
-        yRand = rnd.random()*(yRange[1]-yRange[0]) + yRange[0]
-        rRand = rnd.random()*(rRange[1]-rRange[0]) + rRange[0]
+        xRand = rnd.uniform(xRange[1], xRange[0]) + xRange[0]
+        yRand = rnd.uniform(yRange[1], yRange[0]) + yRange[0]
+#        rRand = rnd.random()*(rRange[1]-rRange[0]) + rRange[0]
+        rRand = rnd.uniform(-Pi/12, Pi/12) + INITIAL_HEADING
         particles.append([xRand, yRand, rRand])
     
     particles = np.array(particles)
@@ -420,7 +421,7 @@ def main(scan_n = 0.1, trans_n = 0.1, rot_n = 0.1):
     rd.readFile('trajectories_1.txt')
     makeWorld('grid1.txt',3)
     print 'total iterations', len(rd.position)
-    particleFilter(len(rd.position), graph =True)
+    particleFilter(len(rd.position)-11, graph =True)
     
 
 """
