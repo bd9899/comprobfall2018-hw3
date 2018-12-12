@@ -171,7 +171,7 @@ def predict(u):
     # update heading
     
     particles[:, 2] = np.random.normal(u[1],noise[2])
-    particles[:,2] %= 2*Pi
+#    particles[:,2] %= 2*Pi
 #    normalizeAngles()
 
     dist = np.random.normal(u[0], noise[1])
@@ -188,25 +188,6 @@ def normalizeAngles():
             particles[i,2] -= 2*Pi
         while particles[i,2] < -Pi:
             particles[i,2] += 2*Pi
-        
-"""
-def predict(u):
-
-    global particles
-    global noise
-    
-    N = len(particles)
-    # update heading
-    particles[:, 2] += np.random.normal(u[1],noise[2])
-#    particles[:, 2] %= 2 * Pi
-
-    # move in the (noisy) commanded direction
-    dist = np.random.normal(u[0],noise[1])
-    particles[:, 0] += np.cos(particles[:, 2]) * dist
-    particles[:, 1] += np.sin(particles[:, 2]) * dist
-    return particles
-
-"""
 
 
 def likelihood(distance, measured, noise = .01): #measured distance 
@@ -233,12 +214,12 @@ def updateWeights(measuredLengths):
 
             weights[i] *= prob
         if x > worldBounds[0][1] or x < worldBounds[0][0]:
-            weights[i] = 0
+            weights[i] = -1.e-301
         if y > worldBounds[1][1] or y < worldBounds[1][0]:
-            weights[i] = 0
+            weights[i] = -1.e-301
         for poly in obstacles:
             if poly.contains(Point(x,y)):
-                weights[i] = 0
+                weights[i] = -1.e-301
                 break
         weights[i] += 1.e-300      # avoid round-off to zero
     
@@ -257,7 +238,7 @@ def resample_from_index(indexes):
 #    weights[:] = weights[indexes]
     weights.fill(1.0 / len(weights))
     
-    particles.round(5)
+    particles = particles.round(5)
     meanVec = [np.mean(particles[:,0]),np.mean(particles[:,1]),np.mean(particles[:,2])]
     stdVec = [np.std(particles[:,0]),np.std(particles[:,1]),np.std(particles[:,2])]    
     
@@ -265,14 +246,15 @@ def resample_from_index(indexes):
     
     tempNum = int(N/7/len(uniqueParticles))
     numAdded = int(tempNum*len(uniqueParticles))
-    newParts, w = createGaussian(uniqueParticles[0], [.1,.1,.1] , tempNum)
-    for i in range(1,len(uniqueParticles)):
-        tempNew, w = createGaussian(uniqueParticles[0], [.1,.1,Pi/40] , tempNum)
-        newParts = np.concatenate((newParts, tempNew))
+    if numAdded <= N/6 and tempNum > 0:
+        newParts, w = createGaussian(uniqueParticles[0], [.1,.1,.1] , tempNum)
+        for i in range(1,len(uniqueParticles)):
+            tempNew, w = createGaussian(uniqueParticles[0], [.1,.1,Pi/40] , tempNum)
+            newParts = np.concatenate((newParts, tempNew))
     
-    inds = np.random.randint(0,N,numAdded)
-    newParts, w = createGaussian(meanVec, stdVec, numAdded)
-    particles[inds] = newParts
+        inds = np.random.randint(0,N,numAdded)
+        newParts, w = createGaussian(meanVec, stdVec, numAdded)
+        particles[inds] = newParts
     
     
     return particles
@@ -458,12 +440,11 @@ def particleFilter(iterations, isStartKnown = False, graph = False):
         meanVec = [rd.start_pos[0],rd.start_pos[1],INITIAL_HEADING]
         stdVec = [.3, .3, Pi/20]
         particles, weights = createGaussian(meanVec, stdVec, N)
-        particles.round(6)
     else:
         particles, weights = createUniform(worldBounds[0], worldBounds[1], [-Pi, Pi], N)
-        particles.round(6)
 
-    
+    particles = particles.round(5)
+
     prevHeading = INITIAL_HEADING   
     
     startPos = np.array([rd.start_pos[0],rd.start_pos[1], INITIAL_HEADING])
@@ -484,7 +465,7 @@ def particleFilter(iterations, isStartKnown = False, graph = False):
         changeList.append([distanceChange, angleChange])
 #        predict([distanceChange, angleChange])
         predict([distanceChange, rd.noisy_heading[i]])
-        particles.round(5)
+        particles = particles.round(5)
         updateWeights(rd.scan_data[i])
         resample2()
         
@@ -499,6 +480,7 @@ def particleFilter(iterations, isStartKnown = False, graph = False):
     if graph:
         visualize(iterParticles, iterReal)
     
+    print iterParticles[i+1]
     print np.unique(iterParticles[-1], axis=0)
 #    for q in range(1,len(iterParticles)):
 #        print changeList[q-1]
