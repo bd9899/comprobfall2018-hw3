@@ -35,7 +35,7 @@ weights = []
 noise = [] #tuple of (scan noise, trans noise, rotation noise)
 #Nodes = [] #tuple of (node, weight)
 distribution = None
-N = 100
+N = 500
 NTh = N/2.0
 INITIAL_HEADING = 0
 iterParticles = []
@@ -152,7 +152,7 @@ def createGaussian(meanVec, stdVec, N):
     particles = np.empty((N, 3))
     particles[:, 0] = meanVec[0] + (randn(N) * stdVec[0])
     particles[:, 1] = meanVec[1] + (randn(N) * stdVec[1])
-    particles[:, 2] = rnd.uniform(-.1,.05)#meanVec[2] + (randn(N) * stdVec[2])
+    particles[:, 2] = meanVec[2]#rnd.uniform(-.1,.05)#meanVec[2] + (randn(N) * stdVec[2])
     #particles[:, 2] %= 2 * Pi
     #particles[:, 2] -= Pi
     weights = np.empty((N,1))
@@ -231,6 +231,40 @@ def updateWeights(measuredLengths):
     
     
 
+def resample_from_index_example(indexes):
+    global particles, weights
+    
+    particles[:] = particles[indexes]
+#    weights[:] = weights[indexes]
+    weights.fill(1.0 / len(weights))
+    
+    particles = particles.round(5)
+    meanVec = [np.mean(particles[:,0]),np.mean(particles[:,1]),np.mean(particles[:,2])]
+    stdVec = [np.std(particles[:,0]),np.std(particles[:,1]),np.std(particles[:,2])]    
+    
+    uniqueParticles, freqency = np.unique(particles, return_counts=True, axis=0)
+    number_uniqueParticles = len(particles)
+    zipped = uniqueParticles, freqency
+    print(freqency)
+    print(number_uniqueParticles)
+    print(zipped)
+    for count, i in enumerate(zipped[0]):
+        print(count)
+        
+        reso = int(N*(float(zipped[1][count])/number_uniqueParticles))
+        print(reso)
+        if reso > .5:    
+            tempParticles, w = createGaussian(zipped[0][count], [0,0,0], reso)
+        else:
+            tempParticles, w = createGaussian(zipped[0][count], [.1,.1,(Pi/40)], reso)            
+        if count >= 1:    
+            newParticles = np.concatenate((tempParticles, newParticles))
+        else:
+            newParticles = tempParticles
+          
+    particles = newParticles
+    return newParticles
+
 def resample_from_index(indexes):
     global particles, weights
     
@@ -267,6 +301,7 @@ def systematic_resample(weights):
 
     indexes = np.zeros(N, 'i')
     cumulative_sum = np.cumsum(weights)
+        
     
     i,j = 0,0
     while i < N:
@@ -275,6 +310,19 @@ def systematic_resample(weights):
             i += 1
         else:
             j += 1
+    print("Indexes")
+    unique, freqency = np.unique(indexes, return_counts=True)
+    if (len(freqency) == 1):
+        count = 0
+        top5 = grabTop5()
+        for i in top5:
+            for j in range(len(indexes)/5):
+                if (count == 100):
+                    continue
+                else:
+                    indexes[count] = i
+                    count += 1
+    print(indexes)
     return indexes
 
 def resample2():
@@ -285,7 +333,7 @@ def resample2():
     if neff < NTh:
         print 'neff     ', neff
         indexes = systematic_resample(weights)
-        resample_from_index(indexes)
+        resample_from_index_example(indexes)
 #        assert np.allclose(weights, 1/N)  
 
 
@@ -475,7 +523,7 @@ def particleFilter(iterations, isStartKnown = False, graph = False):
         
         print time.time() - sTime
         print len(iterParticles[i+1])
-        print 'num uninque ', len(np.unique(iterParticles[i+1], axis=0))
+        #print 'num uninque ', len(np.unique(iterParticles[i+1], axis=0))
         
     if graph:
         visualize(iterParticles, iterReal)
@@ -496,7 +544,7 @@ def particleFilter(iterations, isStartKnown = False, graph = False):
     return particles, weights   
 
 
-def main(scan_n = 0.1, trans_n = 0.1, rot_n = .1):
+def main(scan_n = 0.2, trans_n = 0.2, rot_n = .2):
     global INITIAL_HEADING, N
     global noise
     
@@ -510,7 +558,7 @@ def main(scan_n = 0.1, trans_n = 0.1, rot_n = .1):
     
     N = 100
     print 'total iterations', len(rd.position), ' with ', N, ' number of particles'
-    particleFilter(len(rd.position), isStartKnown = False, graph =True)
+    particleFilter(len(rd.position), isStartKnown = True, graph =True)
     
 
 
