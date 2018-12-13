@@ -35,7 +35,7 @@ weights = []
 noise = [] #tuple of (scan noise, trans noise, rotation noise)
 #Nodes = [] #tuple of (node, weight)
 distribution = None
-N = 500
+N = 10000
 NTh = N/2.0
 INITIAL_HEADING = 0
 iterParticles = []
@@ -198,21 +198,32 @@ def likelihood(distance, measured, noise = .01): #measured distance
     
 
 def updateWeights(measuredLengths):
-    global weights, particles
+    global weights, particles, obstacles
     
     for i in range(len(weights)):
         x = particles[i,0]
         y = particles[i,1]
         z = particles[i,2]
-
+        pnt = Point((x,y))
+        for obstacle in obstacles:            
+                intersections = obstacle.contains(pnt)
+                if intersections:
+                    while(intersections):
+                        particles[i], w = createGaussian(particles[int(grabTop5()[0])], [.01, 0.1, Pi/40], 1)
+                        pnt = Point(particles[i,0], particles[i,1])
+                        intersections = obstacle.contains(pnt)
+                        print('DEBUG')
         scans = generate_scans_for_particles(Pose(x,y,z))
 
         for j in range(len(scans)):
             if measuredLengths[j] == -1.0:
                 continue
-            prob = likelihood(scans[j], measuredLengths[j], noise = noise[0])
-
+            prob = likelihood(scans[j], measuredLengths[j], noise = .01)
+            
             weights[i] *= prob
+            
+            
+                
         if x > worldBounds[0][1] or x < worldBounds[0][0]:
             weights[i] = -1.e-301
         if y > worldBounds[1][1] or y < worldBounds[1][0]:
@@ -227,6 +238,8 @@ def updateWeights(measuredLengths):
     for i in range(len(weights)):
         weights[i] /= totalWeight # normalize 
     
+    print('After Reweighting')
+    print(weights)
     return weights
     
     
@@ -245,18 +258,18 @@ def resample_from_index_example(indexes):
     uniqueParticles, freqency = np.unique(particles, return_counts=True, axis=0)
     number_uniqueParticles = len(particles)
     zipped = uniqueParticles, freqency
-    print(freqency)
-    print(number_uniqueParticles)
-    print(zipped)
+    #print(freqency)
+    #print(number_uniqueParticles)
+    #print(zipped)
     for count, i in enumerate(zipped[0]):
-        print(count)
+        #print(count)
         
         reso = int(N*(float(zipped[1][count])/number_uniqueParticles))
-        print(reso)
+        #print(reso)
         if reso > .5:    
-            tempParticles, w = createGaussian(zipped[0][count], [0,0,0], reso)
+            tempParticles, w = createGaussian(zipped[0][count], [.05,.01,0], reso)
         else:
-            tempParticles, w = createGaussian(zipped[0][count], [.1,.1,(Pi/40)], reso)            
+            tempParticles, w = createGaussian(zipped[0][count], [.1,.01,(Pi/40)], reso)            
         if count >= 1:    
             newParticles = np.concatenate((tempParticles, newParticles))
         else:
@@ -295,7 +308,8 @@ def resample_from_index(indexes):
 
 def systematic_resample(weights):
     N = len(weights)
-
+    print('Before Resample')
+    print(weights)
     # make N subdivisions, and choose positions with a consistent random offset
     positions = (rnd.random() + np.arange(N)) / N
 
@@ -310,9 +324,9 @@ def systematic_resample(weights):
             i += 1
         else:
             j += 1
-    print("Indexes")
+    #print("Indexes")
     unique, freqency = np.unique(indexes, return_counts=True)
-    if (len(freqency) == 1):
+    if (len(freqency) < 5):
         count = 0
         top5 = grabTop5()
         for i in top5:
@@ -322,7 +336,7 @@ def systematic_resample(weights):
                 else:
                     indexes[count] = i
                     count += 1
-    print(indexes)
+    #print(indexes)
     return indexes
 
 def resample2():
@@ -337,7 +351,12 @@ def resample2():
 #        assert np.allclose(weights, 1/N)  
 
 
-
+def grabTop():
+    global weights
+    
+    sort_list = weights.copy()
+    sort_list = np.argsort(sort_list)
+    return sort_list[:1]
 
 def grabTop5():
     global weights
@@ -544,10 +563,10 @@ def particleFilter(iterations, isStartKnown = False, graph = False):
     return particles, weights   
 
 
-def main(scan_n = 0.2, trans_n = 0.2, rot_n = .2):
+def main(scan_n = 0.2, trans_n = 0.1, rot_n = .02):
     global INITIAL_HEADING, N
     global noise
-    
+    global NTh
     noise = (scan_n, trans_n, rot_n)
     INITIAL_HEADING = 0    
     
@@ -557,6 +576,7 @@ def main(scan_n = 0.2, trans_n = 0.2, rot_n = .2):
     makeWorld('grid1.txt',3)
     
     N = 100
+    NTh = N/2
     print 'total iterations', len(rd.position), ' with ', N, ' number of particles'
     particleFilter(len(rd.position), isStartKnown = True, graph =True)
     
