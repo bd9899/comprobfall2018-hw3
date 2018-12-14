@@ -25,6 +25,7 @@ import pandas as pd
 import random as rnd
 import read_file as rd
 import scipy
+from numpy.random import choice 
 
 
 worldBounds = [[-5,1],[-3,-2]]    #bounds of the world/room
@@ -171,10 +172,11 @@ def predict(u):
     # update heading
     
     particles[:, 2] = np.random.normal(u[1],noise[2])
-#    particles[:,2] %= 2*Pi
-#    normalizeAngles()
+#    particles[:, 2] = u[1]
 
-    dist = np.random.normal(u[0], noise[1])
+#    dist = np.random.normal(u[0], noise[1])
+    dist = u[0] + np.random.uniform(-noise[1], noise[1])
+    print 'predicted dist: ', dist
     particles[:, 0] += np.cos(particles[:, 2]) * dist
     particles[:, 1] += np.sin(particles[:, 2]) * dist
     
@@ -214,20 +216,23 @@ def updateWeights(measuredLengths):
 
             weights[i] *= prob
         if x > worldBounds[0][1] or x < worldBounds[0][0]:
-            weights[i] = -1.e-301
+            weights[i] = 0
         if y > worldBounds[1][1] or y < worldBounds[1][0]:
-            weights[i] = -1.e-301
+            weights[i] = 0
         for poly in obstacles:
             if poly.contains(Point(x,y)):
-                weights[i] = -1.e-301
+                weights[i] = 0
                 break
+        
         weights[i] += 1.e-300      # avoid round-off to zero
     
+
     totalWeight = sum(weights)
     for i in range(len(weights)):
         weights[i] /= totalWeight # normalize 
     
     return weights
+    
     
     
 
@@ -238,21 +243,21 @@ def resample_from_index_example(indexes):
 #    weights[:] = weights[indexes]
     weights.fill(1.0 / len(weights))
     
-    particles = particles.round(5)
+    particles = particles.round(6)
     meanVec = [np.mean(particles[:,0]),np.mean(particles[:,1]),np.mean(particles[:,2])]
     stdVec = [np.std(particles[:,0]),np.std(particles[:,1]),np.std(particles[:,2])]    
     
     uniqueParticles, freqency = np.unique(particles, return_counts=True, axis=0)
     number_uniqueParticles = len(particles)
     zipped = uniqueParticles, freqency
-    print(freqency)
-    print(number_uniqueParticles)
-    print(zipped)
+#    print(freqency)
+#    print(number_uniqueParticles)
+#    print(zipped)
     for count, i in enumerate(zipped[0]):
-        print(count)
+#        print(count)
         
         reso = int(N*(float(zipped[1][count])/number_uniqueParticles))
-        print(reso)
+#        print(reso)
         if reso > .5:    
             tempParticles, w = createGaussian(zipped[0][count], [0,0,0], reso)
         else:
@@ -272,15 +277,15 @@ def resample_from_index(indexes):
 #    weights[:] = weights[indexes]
     weights.fill(1.0 / len(weights))
     
-    particles = particles.round(5)
+    particles = particles.round(6)
     meanVec = [np.mean(particles[:,0]),np.mean(particles[:,1]),np.mean(particles[:,2])]
     stdVec = [np.std(particles[:,0]),np.std(particles[:,1]),np.std(particles[:,2])]    
     
     uniqueParticles = np.unique(particles, axis=0)
     
-    tempNum = int(N/7/len(uniqueParticles))
+    tempNum = int(N/5/len(uniqueParticles))
     numAdded = int(tempNum*len(uniqueParticles))
-    if numAdded <= N/6 and tempNum > 0:
+    if numAdded <= N/4 and tempNum > 0:
         newParts, w = createGaussian(uniqueParticles[0], [.1,.1,.1] , tempNum)
         for i in range(1,len(uniqueParticles)):
             tempNew, w = createGaussian(uniqueParticles[0], [.1,.1,Pi/40] , tempNum)
@@ -296,34 +301,19 @@ def resample_from_index(indexes):
 def systematic_resample(weights):
     N = len(weights)
 
-    # make N subdivisions, and choose positions with a consistent random offset
-    positions = (rnd.random() + np.arange(N)) / N
+    positions = (np.arange(N) + randn()) / N
 
     indexes = np.zeros(N, 'i')
     cumulative_sum = np.cumsum(weights)
-        
-    
-    i,j = 0,0
+    i, j = 0, 0
     while i < N:
         if positions[i] < cumulative_sum[j]:
             indexes[i] = j
             i += 1
         else:
             j += 1
-    print("Indexes")
-    unique, freqency = np.unique(indexes, return_counts=True)
-    if (len(freqency) == 1):
-        count = 0
-        top5 = grabTop5()
-        for i in top5:
-            for j in range(len(indexes)/5):
-                if (count == 100):
-                    continue
-                else:
-                    indexes[count] = i
-                    count += 1
-    print(indexes)
     return indexes
+
 
 def resample2():
     global weights, particles
@@ -333,11 +323,35 @@ def resample2():
     if neff < NTh:
         print 'neff     ', neff
         indexes = systematic_resample(weights)
-        resample_from_index_example(indexes)
+        resample_from_index(indexes)
 #        assert np.allclose(weights, 1/N)  
 
 
+def resample4():
+    """
+    low variance re-sampling
+    """
+    global particles, weights, N
+    px = particles
+    pw = weights
+    Neff = 1.0 / (pw.dot(pw.T))[0, 0]  # Effective particle number
+    if Neff < NTh:
+        wcum = np.cumsum(pw)
+        base = np.cumsum(pw * 0.0 + 1 / N) - 1 / N
+        resampleid = base + np.random.rand(base.shape[0]) / N
 
+        inds = []
+        ind = 0
+        for ip in range(N):
+            while resampleid[ip] > wcum[ind]:
+                ind += 1
+            inds.append(ind)
+
+        px = px[:, inds]
+        pw = np.zeros((1, N)) + 1.0 / N  # init weight
+
+    particles = px
+    weights = pw
 
 def grabTop5():
     global weights
@@ -404,6 +418,66 @@ def resample3():
         weights = [1.0 / N for i in range(N)] # init weight
 
 
+def resample5():
+    global particles, weights, N, NTh
+    Neff =  1. / np.sum(np.square(weights))
+    np.random.seed(0)
+    if Neff > NTh and Neff < N+20:
+        return
+    
+    print 'resample'
+    inds = np.arange(len(particles)).tolist()
+    indx = []
+        
+    tempP = weights.reshape(len(weights),)
+    if np.sum(tempP) != 1:
+        tempP = tempP/np.sum(tempP)
+    indx = choice(inds, p=tempP, size = len(inds), replace = True)
+        
+    particles = particles[indx]
+    weights = np.ones(len(particles)) / len(weights)
+    
+    
+    if len(particles) >= 50:
+        uniqueParticles = np.unique(particles, axis = 0)
+        if uniqueParticles.shape == (3,):
+            uniqueParticles = particles
+        maxWeight = np.max(weights)
+        if maxWeight < .1:
+            maxWeight = .1
+        stdev = [.01/maxWeight,.01/maxWeight,.01/maxWeight]
+        additions = int(len(particles)*0.15)
+#        print uniqueParticles
+        chosenOne = uniqueParticles[choice(len(uniqueParticles)),:]
+#        print chosenOne
+#        print stdev
+        newParts, w = createGaussian(chosenOne, stdev, 1)
+#        newParts, w = createUniform(worldBounds[0], worldBounds[1], [-Pi, Pi], additions)
+        for i in range(additions-1):
+            chosenOne = uniqueParticles[choice(len(uniqueParticles))]
+#            print chosenOne
+            tempNew, w = createGaussian(chosenOne, stdev, 1)
+            newParts = np.concatenate((newParts, tempNew))
+    
+        inds = np.random.randint(0,N,additions)
+        particles[inds] = newParts
+    weights = np.ones(len(particles)) / len(weights)
+
+    
+def uNiQuE(vec):
+    popCtr = 0
+    for p in vec:
+        if p in vec[:popCtr]:
+            vec = np.delete(vec, popCtr, 0)
+            popCtr -= 1
+        popCtr += 1
+        
+    
+    return vec
+    
+
+
+    
 def compute_x_y(pose):
     x = pose.x
     y = pose.y
@@ -482,8 +556,9 @@ def compute_length(pose, possible_scans):
 
 
 def particleFilter(iterations, isStartKnown = False, graph = False):
-    global particles, weights, iterParticles, iterReal, N
+    global particles, weights, iterParticles, iterReal, N, INITIAL_HEADING
     
+    INITIAL_HEADING = rd.noisy_heading[0]
     if isStartKnown:
         meanVec = [rd.start_pos[0],rd.start_pos[1],INITIAL_HEADING]
         stdVec = [.3, .3, Pi/20]
@@ -491,7 +566,7 @@ def particleFilter(iterations, isStartKnown = False, graph = False):
     else:
         particles, weights = createUniform(worldBounds[0], worldBounds[1], [-Pi, Pi], N)
 
-    particles = particles.round(5)
+    particles = particles.round(6)
 
     prevHeading = INITIAL_HEADING   
     
@@ -509,13 +584,19 @@ def particleFilter(iterations, isStartKnown = False, graph = False):
         angleChange = rd.noisy_heading[i] - prevHeading
         prevHeading = rd.noisy_heading[i]
         distanceChange = rd.noisy_distance[i]
-        
+        print 'dChange: ', distanceChange
+        INITIAL_HEADING = rd.noisy_heading[i]
         changeList.append([distanceChange, angleChange])
 #        predict([distanceChange, angleChange])
         predict([distanceChange, rd.noisy_heading[i]])
-        particles = particles.round(5)
+        particles = particles.round(6)
         updateWeights(rd.scan_data[i])
-        resample2()
+        for deg in particles[:,2]:
+            if abs(deg - rd.noisy_heading[i]) >.00001:
+                print 'over predict: ', deg, ' actual ', rd.noisy_heading[i]
+        
+        
+        resample5()
         
         realPos = np.array(rd.position[i])
         iterParticles.append(particles.copy())
@@ -528,8 +609,9 @@ def particleFilter(iterations, isStartKnown = False, graph = False):
     if graph:
         visualize(iterParticles, iterReal)
     
-    print iterParticles[i+1]
+#    print iterParticles[i+1]
     print np.unique(iterParticles[-1], axis=0)
+    
 #    for q in range(1,len(iterParticles)):
 #        print changeList[q-1]
 #        xVal = iterParticles[q][0][0]
@@ -545,7 +627,7 @@ def particleFilter(iterations, isStartKnown = False, graph = False):
 
 
 def main(scan_n = 0.2, trans_n = 0.2, rot_n = .2):
-    global INITIAL_HEADING, N
+    global INITIAL_HEADING, N, NTh
     global noise
     
     noise = (scan_n, trans_n, rot_n)
@@ -556,9 +638,12 @@ def main(scan_n = 0.2, trans_n = 0.2, rot_n = .2):
     rd.readFile('trajectories_1.txt')
     makeWorld('grid1.txt',3)
     
-    N = 100
+    N = 200
+    NTh = N/2
+    known = False
+    print 'Is Start Known: ', known
     print 'total iterations', len(rd.position), ' with ', N, ' number of particles'
-    particleFilter(len(rd.position), isStartKnown = True, graph =True)
+    particleFilter(len(rd.position), isStartKnown = known, graph =True)
     
 
 
