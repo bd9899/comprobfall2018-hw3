@@ -148,7 +148,7 @@ def createUniform(xRange, yRange, rRange, N):
     return particles, weights
     
 
-
+        
 def createGaussian(meanVec, stdVec, N):
     particles = np.empty((N, 3))
     particles[:, 0] = meanVec[0] + (randn(N) * stdVec[0])
@@ -217,7 +217,7 @@ def updateWeights(measuredLengths):
 #                        print('DEBUG')
         scans = generate_scans_for_particles(Pose(x,y,z))
 
-        for j in range(len(scans)):
+        for j in range(len(measuredLengths)):
             if measuredLengths[j] == -1.0:
                 continue
             prob = likelihood(scans[j], measuredLengths[j], noise = .01)
@@ -477,6 +477,10 @@ def resample5():
         uniqueParticles = np.unique(particles, axis = 0)
         if uniqueParticles.shape == (3,):
             uniqueParticles = particles
+#        if len(uniqueParticles == 1):
+#            a = uniqueParticles[0,0]
+#            b = 
+#            radius = 
         maxWeight = np.max(weights)
         if maxWeight < .1:
             maxWeight = .1
@@ -606,6 +610,7 @@ def particleFilter(iterations, isStartKnown = False, graph = False):
     prevHeading = INITIAL_HEADING   
     
     startPos = np.array([rd.start_pos[0],rd.start_pos[1], INITIAL_HEADING])
+#    particles = startPos.reshape(1,3)
     iterParticles.append(particles.copy())
     iterReal.append(startPos)
     
@@ -661,7 +666,7 @@ def particleFilter(iterations, isStartKnown = False, graph = False):
     return particles, weights   
 
 
-def main(scan_n = 0.2, trans_n = 0.2, rot_n = .2):
+def main(scan_n = 0.30, trans_n = 0.1, rot_n = .1):
     global INITIAL_HEADING, N, NTh
 
     global noise
@@ -671,15 +676,15 @@ def main(scan_n = 0.2, trans_n = 0.2, rot_n = .2):
     
     
     
-    rd.readFile('trajectories_1.txt')
-    makeWorld('grid1.txt',3)
+    rd.readFile('trajectories_7.txt')
+    makeWorld('map_7.txt',3)
     
-    N = 200
+    N = 100
     NTh = N/2
     known = False
     print 'Is Start Known: ', known
 
-    print 'total iterations', len(rd.position), ' with ', N, ' number of particles'
+    print 'total iterations', len(rd.position)-16, ' with ', N, ' number of particles'
     particleFilter(len(rd.position), isStartKnown = known, graph =True)
     
 
