@@ -1,0 +1,6 @@
+custom_trajectories_1 : 0.05 for all
+custom_trajectories_2 : scan - 0.125, rot - 0.2, trans - 0.15
+custom_trajectories_3 : scan - 0.07, rot - 0.03, trans - 0.12
+custom_trajectories_4 : scan - 0.0, rot - 0.0, trans - 0.08
+
+
