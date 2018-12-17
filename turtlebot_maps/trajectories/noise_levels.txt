@@ -1,0 +1,7 @@
+trajectories_2_nonoise : all 0
+trajectories_1_005 : 0.05 for all
+trajectories_4_custom : scan - 0.11, rot - 0.15, trans - 0.11
+trajectories_1_maxnoise : scan - 0.125, rot - 0.2, trans - 0.15
+
+
+
