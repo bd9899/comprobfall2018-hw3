@@ -242,8 +242,8 @@ def updateWeights(measuredLengths):
     for i in range(len(weights)):
         weights[i] /= totalWeight # normalize 
     
-    print('After Reweighting')
-    print(weights)
+#    print('After Reweighting')
+#    print(weights)
     return weights
     
     
@@ -314,8 +314,8 @@ def systematic_resample(weights):
     N = len(weights)
 
     positions = (np.arange(N) + randn()) / N
-    print('Before Resample')
-    print(weights)
+#    print('Before Resample')
+#    print(weights)
     # make N subdivisions, and choose positions with a consistent random offset
     positions = (rnd.random() + np.arange(N)) / N
 
@@ -643,14 +643,22 @@ def particleFilter(iterations, isStartKnown = False, graph = False):
         iterReal.append(realPos)
         
         print time.time() - sTime
-        print len(iterParticles[i+1])
+#        print len(iterParticles[i+1])
         #print 'num uninque ', len(np.unique(iterParticles[i+1], axis=0))
         
     if graph:
         visualize(iterParticles, iterReal)
     
 #    print iterParticles[i+1]
-    print np.unique(iterParticles[-1], axis=0)
+#    print np.unique(iterParticles[-1], axis=0)
+        
+    ind = np.argmax(weights)
+    print 'Highest weight index '
+    maxParticle = particles[ind,:]
+    print maxParticle
+    x,y,z = rd.position[i]
+    print 'Distance = ', np.linalg.norm(maxParticle[:2] - np.array([x,y]))
+    
     
 #    for q in range(1,len(iterParticles)):
 #        print changeList[q-1]
@@ -666,7 +674,7 @@ def particleFilter(iterations, isStartKnown = False, graph = False):
     return particles, weights   
 
 
-def main(scan_n = 0.30, trans_n = 0.1, rot_n = .1):
+def main(scan_n = 0.15, trans_n = 0.1, rot_n = .1):
     global INITIAL_HEADING, N, NTh
 
     global noise
@@ -676,16 +684,16 @@ def main(scan_n = 0.30, trans_n = 0.1, rot_n = .1):
     
     
     
-    rd.readFile('trajectories_7.txt')
-    makeWorld('map_7.txt',3)
+    rd.readFile('trajectories_1.txt')
+    makeWorld('grid1.txt',3)
     
-    N = 100
+    N = 30
     NTh = N/2
-    known = False
+    known = True
     print 'Is Start Known: ', known
 
-    print 'total iterations', len(rd.position)-16, ' with ', N, ' number of particles'
-    particleFilter(len(rd.position), isStartKnown = known, graph =True)
+    print 'total iterations', len(rd.position), ' with ', N, ' number of particles'
+    particleFilter(len(rd.position)-len(rd.position)+1, isStartKnown = known, graph =True)
     
 
 
